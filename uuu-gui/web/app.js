@@ -59,6 +59,13 @@ async function loadImages() {
 
 $("refresh-btn").onclick = loadImages;
 
+$("import-btn").onclick = () => $("file-input").click();
+$("file-input").onchange = () => {
+  const f = $("file-input").files[0];
+  if (f) uploadFile(f);
+  $("file-input").value = "";
+};
+
 $("flash-btn").onclick = async () => {
   if (!selected || busy()) return;
   const res = await fetch("/api/flash", {

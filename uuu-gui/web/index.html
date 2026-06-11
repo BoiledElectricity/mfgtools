@@ -16,8 +16,12 @@
   <section id="images-section">
     <div class="section-head">
       <h2>1. Pick an image</h2>
-      <button id="refresh-btn" class="small" title="Rescan folders">↻ Refresh</button>
+      <div class="head-buttons">
+        <button id="import-btn" class="small accent">＋ Import image…</button>
+        <button id="refresh-btn" class="small" title="Rescan folders">↻ Refresh</button>
+      </div>
     </div>
+    <input type="file" id="file-input" accept=".wic,.lz4,.zst,.gz,.bz2" hidden>
     <p id="scan-hint" class="hint"></p>
     <div id="upload-row" class="prog-row" hidden>
       <span class="prog-label" id="upload-label">Receiving</span>

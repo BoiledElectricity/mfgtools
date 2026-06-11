@@ -35,6 +35,8 @@ button {
 }
 button:disabled { background: #2c3644; color: var(--dim); cursor: not-allowed; }
 button.small { padding: 5px 12px; font-size: 13px; background: var(--panel2); color: var(--text); }
+button.small.accent { background: var(--accent); color: #fff; }
+.head-buttons { display: flex; gap: 8px; }
 button.danger { background: var(--red); }
 
 .image-list { display: grid; gap: 8px; }
