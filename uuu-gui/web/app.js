@@ -1,7 +1,11 @@
 "use strict";
 
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+
 const $ = (id) => document.getElementById(id);
-let selected = null; // server-side path of the chosen image
+// The three files needed for a flash: imx-boot, .wic(.lz4) image, .wic.bmap
+const files = { bootloader: null, image: null, bmap: null };
 let state = { phase: "idle" };
 
 function fmtSize(n) {
@@ -11,100 +15,90 @@ function fmtSize(n) {
 }
 const busy = () => ["decompressing", "waiting", "flashing"].includes(state.phase);
 
-// ---- choosing an image ----
+// ---- choosing the files ----
 
-$("import-btn").onclick = () => $("file-input").click();
-$("file-input").onchange = () => {
-  const f = $("file-input").files[0];
-  if (f) uploadFile(f);
-  $("file-input").value = "";
+const SLOT_PLACEHOLDER = {
+  bootloader: "imx-boot file",
+  image: ".wic / .wic.lz4 file",
+  bmap: ".wic.bmap file",
 };
-$("clear-btn").onclick = () => {
-  if (busy()) return;
-  selected = null;
-  $("dz-idle").hidden = false;
-  $("dz-selected").hidden = true;
+const SLOT_IDS = { bootloader: "boot", image: "image", bmap: "bmap" };
+
+function setSlot(kind, f) {
+  files[kind] = f;
+  const id = SLOT_IDS[kind];
+  const nameEl = $(id + "-name");
+  if (f) {
+    nameEl.textContent = f.name;
+    nameEl.className = "filerow-name";
+    $(id + "-meta").textContent = fmtSize(f.size);
+  } else {
+    nameEl.textContent = SLOT_PLACEHOLDER[kind];
+    nameEl.className = "filerow-name empty-name";
+    $(id + "-meta").textContent = "";
+  }
   render();
+}
+
+$("pick-boot-btn").onclick = async () => {
+  const f = await invoke("pick_bootloader");
+  if (f) setSlot("bootloader", f);
+};
+$("pick-image-btn").onclick = async () => {
+  const f = await invoke("pick_image");
+  if (f) setSlot("image", f);
+};
+$("pick-bmap-btn").onclick = async () => {
+  const f = await invoke("pick_bmap");
+  if (f) setSlot("bmap", f);
 };
 
-const dz = $("dropzone");
-["dragenter", "dragover"].forEach((t) =>
-  document.addEventListener(t, (e) => {
-    e.preventDefault();
-    dz.classList.add("drag");
-  })
-);
-["dragleave", "drop"].forEach((t) =>
-  document.addEventListener(t, (e) => {
-    e.preventDefault();
-    if (t === "dragleave" && e.relatedTarget) return;
-    dz.classList.remove("drag");
-  })
-);
-document.addEventListener("drop", (e) => {
-  const f = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (f && !busy()) uploadFile(f);
+// Native drag & drop: Tauri delivers real file paths; each dropped file is
+// sorted into its slot by name (bmap, image, otherwise bootloader).
+listen("tauri://drag-enter", () => $("dropzone").classList.add("drag"));
+listen("tauri://drag-leave", () => $("dropzone").classList.remove("drag"));
+listen("tauri://drag-drop", async (ev) => {
+  $("dropzone").classList.remove("drag");
+  if (busy()) return;
+  for (const path of ev.payload.paths || []) {
+    try {
+      const d = await invoke("classify_dropped", { path });
+      setSlot(d.kind, d.file);
+    } catch (e) {
+      alert(e);
+    }
+  }
 });
-
-function uploadFile(f) {
-  const row = $("upload-row");
-  $("dz-idle").hidden = true;
-  $("dz-selected").hidden = true;
-  row.hidden = false;
-  $("upload-label").textContent = "Loading " + f.name;
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", "/api/upload?name=" + encodeURIComponent(f.name));
-  xhr.upload.onprogress = (e) => {
-    if (!e.lengthComputable) return;
-    const pct = Math.round((e.loaded / e.total) * 100);
-    $("upload-bar").style.width = pct + "%";
-    $("upload-pct").textContent = pct + "%";
-  };
-  const fail = (msg) => {
-    row.hidden = true;
-    $("upload-bar").style.width = "0%";
-    $("dz-idle").hidden = false;
-    alert(msg);
-  };
-  xhr.onload = () => {
-    if (xhr.status !== 200) return fail("Could not use file: " + xhr.responseText);
-    row.hidden = true;
-    $("upload-bar").style.width = "0%";
-    selected = JSON.parse(xhr.responseText).path;
-    $("sel-name").textContent = f.name;
-    $("sel-meta").textContent = fmtSize(f.size);
-    $("dz-selected").hidden = false;
-    render();
-  };
-  xhr.onerror = () => fail("Upload failed");
-  xhr.send(f);
-}
 
 // ---- flashing ----
 
+const ready = () => files.bootloader && files.image && files.bmap;
+
 $("flash-btn").onclick = async () => {
-  if (!selected || busy()) return;
-  const res = await fetch("/api/flash", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: selected }),
-  });
-  if (!res.ok) alert(await res.text());
+  if (!ready() || busy()) return;
+  try {
+    await invoke("start_flash", {
+      bootloader: files.bootloader.path,
+      image: files.image.path,
+      bmap: files.bmap.path,
+    });
+  } catch (e) {
+    alert(e);
+  }
 };
 
-$("cancel-btn").onclick = () => fetch("/api/cancel", { method: "POST" });
+$("cancel-btn").onclick = () => invoke("cancel_flash");
 
 // ---- live state ----
 
-const es = new EventSource("/api/events");
-es.onmessage = (ev) => {
-  $("conn-banner").hidden = true;
-  state = JSON.parse(ev.data);
+listen("state", (ev) => {
+  state = ev.payload;
   render();
-};
-es.onerror = () => {
-  $("conn-banner").hidden = false;
-};
+});
+invoke("get_state").then((s) => {
+  state = s;
+  render();
+});
 
 const PHASE_LABEL = {
   decompressing: "Decompressing image…",
@@ -127,8 +121,12 @@ function render() {
   }
 
   $("uuu-version").textContent = state.uuuVersion || "";
-  $("phase-label").textContent = PHASE_LABEL[state.phase] || "";
-  $("flash-btn").disabled = !selected || busy();
+  let phaseText = PHASE_LABEL[state.phase] || "";
+  if (state.phase === "waiting" && state.needsPassword) {
+    phaseText = "Enter your password in the dialog to allow USB access…";
+  }
+  $("phase-label").textContent = phaseText;
+  $("flash-btn").disabled = !ready() || busy();
   $("cancel-btn").hidden = !busy();
 
   const area = $("progress-area");

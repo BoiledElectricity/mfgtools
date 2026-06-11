@@ -11,30 +11,30 @@
   <h1>Board Flasher</h1>
   <div id="usb-status" class="chip chip-gray">checking USB…</div>
 </header>
-<div id="conn-banner" hidden>⚠ Lost connection to the flasher app — is it still running? Reconnecting…</div>
-
 <main>
   <section>
-    <h2>1. Image</h2>
+    <h2>1. Files</h2>
     <div id="dropzone">
-      <div id="dz-idle">
-        <button id="import-btn">Choose image…</button>
-        <div class="hint">or drag &amp; drop a .wic / .wic.lz4 file here</div>
+      <div class="filerow">
+        <span class="filerow-label">Bootloader</span>
+        <button id="pick-boot-btn" class="small">Choose…</button>
+        <span id="boot-name" class="filerow-name empty-name">imx-boot file</span>
+        <span id="boot-meta" class="image-meta"></span>
       </div>
-      <div id="dz-selected" hidden>
-        <div>
-          <div id="sel-name" class="image-name"></div>
-          <div id="sel-meta" class="image-meta"></div>
-        </div>
-        <button id="clear-btn" class="small">Change</button>
+      <div class="filerow">
+        <span class="filerow-label">Image</span>
+        <button id="pick-image-btn" class="small">Choose…</button>
+        <span id="image-name" class="filerow-name empty-name">.wic / .wic.lz4 file</span>
+        <span id="image-meta" class="image-meta"></span>
       </div>
-      <div id="upload-row" class="prog-row" hidden>
-        <span class="prog-label" id="upload-label">Uploading</span>
-        <div class="bar"><div id="upload-bar" class="fill"></div></div>
-        <span id="upload-pct" class="prog-pct"></span>
+      <div class="filerow">
+        <span class="filerow-label">Bmap</span>
+        <button id="pick-bmap-btn" class="small">Choose…</button>
+        <span id="bmap-name" class="filerow-name empty-name">.wic.bmap file</span>
+        <span id="bmap-meta" class="image-meta"></span>
       </div>
+      <div class="hint">You can also drag &amp; drop the files anywhere on this window — they sort into the right slot by name.</div>
     </div>
-    <input type="file" id="file-input" accept=".wic,.lz4,.zst,.gz,.bz2" hidden>
   </section>
 
   <section>

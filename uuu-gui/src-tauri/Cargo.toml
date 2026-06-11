@@ -1,0 +1,20 @@
+[package]
+name = "uuu-gui"
+version = "0.2.0"
+description = "Board Flasher - native GUI for flashing boards with NXP uuu"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+lz4_flex = "0.11"
+regex = "1"
+
+[profile.release]
+strip = true
+lto = true

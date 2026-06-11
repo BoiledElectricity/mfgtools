@@ -38,15 +38,16 @@ button.small { padding: 5px 12px; font-size: 13px; background: var(--panel2); co
 button.danger { background: var(--red); }
 
 #dropzone {
-  display: grid; gap: 14px; justify-items: center; padding: 28px 20px;
+  display: grid; gap: 12px; padding: 18px 20px;
   background: var(--panel); border: 2px dashed #3a4654; border-radius: 12px;
 }
 #dropzone.drag { border-color: var(--accent); background: var(--panel2); }
-#dz-idle { display: grid; gap: 8px; justify-items: center; }
-#dz-selected { display: flex; align-items: center; gap: 16px; width: 100%; justify-content: space-between; }
-.image-name { font-weight: 600; word-break: break-all; }
-.image-meta { color: var(--dim); font-size: 12.5px; }
-#upload-row { width: 100%; }
+.filerow { display: flex; align-items: center; gap: 12px; }
+.filerow-label { width: 90px; color: var(--dim); font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.filerow-name { font-weight: 600; word-break: break-all; }
+.filerow-name.empty-name { color: var(--dim); font-weight: 400; font-style: italic; }
+.image-meta { color: var(--dim); font-size: 12.5px; white-space: nowrap; }
+#dropzone .hint { text-align: center; }
 
 .flash-row { display: flex; align-items: center; gap: 14px; }
 #phase-label { color: var(--dim); font-weight: 600; }
@@ -56,11 +57,6 @@ button.danger { background: var(--red); }
 .prog-label { width: 130px; color: var(--dim); font-size: 13px; flex-shrink: 0; }
 .prog-pct { width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
 .prog-detail { color: var(--dim); font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-
-#conn-banner {
-  background: rgba(210,153,34,.15); color: #e3b341; font-weight: 600;
-  text-align: center; padding: 8px;
-}
 .bar { flex: 1; height: 12px; background: #2c3644; border-radius: 6px; overflow: hidden; }
 .fill { height: 100%; width: 0%; background: var(--accent); border-radius: 6px; transition: width .25s; }
 .fill.ok { background: var(--green); }
