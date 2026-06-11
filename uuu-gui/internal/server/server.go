@@ -32,9 +32,11 @@ type DevState struct {
 // State is the full GUI state, pushed to clients over SSE on every change.
 type State struct {
 	Phase      string               `json:"phase"` // idle decompressing waiting flashing success error cancelled
-	Image      string               `json:"image"`
-	Wic        string               `json:"wic"`
-	DecompPct  int                  `json:"decompPct"`
+	Image       string               `json:"image"`
+	Wic         string               `json:"wic"`
+	DecompPct   int                  `json:"decompPct"`
+	DecompRead  int64                `json:"decompRead"`  // compressed bytes consumed
+	DecompTotal int64                `json:"decompTotal"` // compressed size
 	Devices    map[string]*DevState `json:"devices"`
 	UsbDevices []uuurun.Device      `json:"usbDevices"`
 	Log        []string             `json:"log"`
@@ -342,7 +344,11 @@ func (s *Server) runFlash(ctx context.Context, image string) {
 				pct := int(read * 100 / total)
 				if pct != last {
 					last = pct
-					s.update(func(st *State) { st.DecompPct = pct })
+					s.update(func(st *State) {
+						st.DecompPct = pct
+						st.DecompRead = read
+						st.DecompTotal = total
+					})
 				}
 			})
 			if ctx.Err() != nil {

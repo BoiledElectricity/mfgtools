@@ -98,8 +98,12 @@ $("cancel-btn").onclick = () => fetch("/api/cancel", { method: "POST" });
 
 const es = new EventSource("/api/events");
 es.onmessage = (ev) => {
+  $("conn-banner").hidden = true;
   state = JSON.parse(ev.data);
   render();
+};
+es.onerror = () => {
+  $("conn-banner").hidden = false;
 };
 
 const PHASE_LABEL = {
@@ -136,6 +140,9 @@ function render() {
     $("decomp-bar").style.width = (state.decompPct || 0) + "%";
     $("decomp-bar").className = "fill" + (state.decompPct >= 100 ? " ok" : "");
     $("decomp-pct").textContent = (state.decompPct || 0) + "%";
+    $("decomp-detail").textContent = state.decompTotal > 0
+      ? `${fmtSize(state.decompRead)} of ${fmtSize(state.decompTotal)}`
+      : "";
   }
 
   const rows = $("device-rows");
