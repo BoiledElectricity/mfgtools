@@ -50,7 +50,8 @@ uuu-gui -dirs /imgs,/srv # extra folders to scan for images
 
 ## USB notes per OS
 
-- **macOS** — works out of the box.
+- **macOS** — the first flash asks for your administrator password (uuu needs
+  root to detach the HID kernel driver); later flashes don't ask again.
 - **Linux** — uuu needs permission to claim the USB device: run with `sudo`,
   or install udev rules once (`uuu -udev` prints them; the embedded uuu is
   extracted to `~/.cache/uuu-gui/` if you want to run it directly).

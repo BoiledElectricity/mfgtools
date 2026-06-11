@@ -14,8 +14,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -68,6 +70,62 @@ func Extract(bin []byte, exeName string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+// IsPrivileged reports whether uuu can already claim USB devices without
+// further setup (used to decide whether a password prompt is coming).
+func IsPrivileged(exe string) bool {
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		return os.Geteuid() == 0 || isSetuidRoot(exe)
+	default:
+		return true
+	}
+}
+
+// EnsurePrivileged makes sure the extracted uuu binary can claim USB devices.
+//
+// On macOS detaching the HID kernel driver needs root (libusb error -3
+// otherwise), so the cached uuu is made setuid-root once via the native
+// administrator-password dialog; later runs need no prompt. The setuid bit
+// only changes the effective uid, so this process can still kill uuu to
+// cancel a flash. On Linux root (sudo) or udev rules are required up front.
+func EnsurePrivileged(exe string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		if os.Geteuid() == 0 || isSetuidRoot(exe) {
+			return nil
+		}
+		script := fmt.Sprintf(
+			`do shell script "/usr/sbin/chown root:wheel '%s' && /bin/chmod 4755 '%s'" `+
+				`with administrator privileges `+
+				`with prompt "Board Flasher needs administrator access to talk to the board over USB."`,
+			exe, exe)
+		out, err := exec.Command("/usr/bin/osascript", "-e", script).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("administrator access not granted: %s", strings.TrimSpace(string(out)))
+		}
+		if !isSetuidRoot(exe) {
+			return fmt.Errorf("could not make uuu privileged")
+		}
+		return nil
+	case "linux":
+		if os.Geteuid() != 0 && !isSetuidRoot(exe) {
+			return fmt.Errorf("USB access needs root: restart with sudo, or install uuu udev rules")
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func isSetuidRoot(exe string) bool {
+	fi, err := os.Stat(exe)
+	if err != nil {
+		return false
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	return ok && st.Uid == 0 && fi.Mode()&os.ModeSetuid != 0
 }
 
 // Version returns the uuu version banner line.

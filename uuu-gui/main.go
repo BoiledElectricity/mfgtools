@@ -150,6 +150,13 @@ func cliFlash(exe, image, script string, bmap bool) {
 		}
 	}
 
+	if !uuurun.IsPrivileged(exe) {
+		fmt.Println("USB access needs administrator rights; you may be asked for your password.")
+	}
+	if err := uuurun.EnsurePrivileged(exe); err != nil {
+		fatal("%v", err)
+	}
+
 	args := []string{}
 	if bmap {
 		args = append(args, "-bmap")

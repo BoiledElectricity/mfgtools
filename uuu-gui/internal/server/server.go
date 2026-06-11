@@ -364,6 +364,14 @@ func (s *Server) runFlash(ctx context.Context, image string) {
 		st.Phase = "waiting"
 	})
 
+	if !uuurun.IsPrivileged(s.opt.UuuPath) {
+		s.logf("Requesting administrator access for USB (password dialog)...")
+	}
+	if err := uuurun.EnsurePrivileged(s.opt.UuuPath); err != nil {
+		fail(err)
+		return
+	}
+
 	args := []string{"-v"}
 	if s.opt.Bmap {
 		args = append(args, "-bmap")
