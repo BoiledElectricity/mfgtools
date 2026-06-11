@@ -1,7 +1,7 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-let selected = null;
+let selected = null; // server-side path of the chosen image
 let state = { phase: "idle" };
 
 function fmtSize(n) {
@@ -9,55 +9,9 @@ function fmtSize(n) {
   if (n > 1 << 20) return (n / (1 << 20)).toFixed(1) + " MB";
   return (n / 1024).toFixed(0) + " KB";
 }
-function fmtWhen(ms) {
-  const d = new Date(ms);
-  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
 const busy = () => ["decompressing", "waiting", "flashing"].includes(state.phase);
 
-// ---- image list ----
-
-async function loadImages() {
-  const res = await fetch("/api/images");
-  const data = await res.json() || {};
-  const images = data.images || [];
-  $("scan-hint").textContent =
-    "Drag & drop an image anywhere on this page, or pick one found in: " +
-    (data.dirs || []).join("  ·  ");
-  const list = $("image-list");
-  list.innerHTML = "";
-  if (!images.length) {
-    list.innerHTML = '<div class="empty">No .wic images found.<br>Drag &amp; drop a .wic / .wic.lz4 file anywhere on this page.</div>';
-    return;
-  }
-  if (!selected) selected = images[0].path; // preselect newest
-  for (const img of images) {
-    const item = document.createElement("div");
-    item.className = "image-item" + (selected === img.path ? " selected" : "");
-    item.innerHTML = `
-      <div>
-        <div class="image-name">${img.name}</div>
-        <div class="image-meta">${fmtSize(img.size)} · ${fmtWhen(img.modTime)} · ${img.path.slice(0, img.path.length - img.name.length - 1)}</div>
-      </div>
-      <div class="badges">
-        ${img.kind !== "wic" ? `<span class="badge lz4">${img.kind.toUpperCase()}</span>` : ""}
-        ${img.cached ? '<span class="badge cached">CACHED</span>' : ""}
-        ${img.hasBmap ? '<span class="badge bmap">BMAP</span>' : ""}
-      </div>`;
-    item.onclick = () => {
-      selected = img.path;
-      document.querySelectorAll(".image-item").forEach((el) => el.classList.remove("selected"));
-      item.classList.add("selected");
-      render();
-    };
-    list.appendChild(item);
-  }
-  render();
-}
-
-// ---- actions ----
-
-$("refresh-btn").onclick = loadImages;
+// ---- choosing an image ----
 
 $("import-btn").onclick = () => $("file-input").click();
 $("file-input").onchange = () => {
@@ -65,6 +19,68 @@ $("file-input").onchange = () => {
   if (f) uploadFile(f);
   $("file-input").value = "";
 };
+$("clear-btn").onclick = () => {
+  if (busy()) return;
+  selected = null;
+  $("dz-idle").hidden = false;
+  $("dz-selected").hidden = true;
+  render();
+};
+
+const dz = $("dropzone");
+["dragenter", "dragover"].forEach((t) =>
+  document.addEventListener(t, (e) => {
+    e.preventDefault();
+    dz.classList.add("drag");
+  })
+);
+["dragleave", "drop"].forEach((t) =>
+  document.addEventListener(t, (e) => {
+    e.preventDefault();
+    if (t === "dragleave" && e.relatedTarget) return;
+    dz.classList.remove("drag");
+  })
+);
+document.addEventListener("drop", (e) => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f && !busy()) uploadFile(f);
+});
+
+function uploadFile(f) {
+  const row = $("upload-row");
+  $("dz-idle").hidden = true;
+  $("dz-selected").hidden = true;
+  row.hidden = false;
+  $("upload-label").textContent = "Loading " + f.name;
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/upload?name=" + encodeURIComponent(f.name));
+  xhr.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round((e.loaded / e.total) * 100);
+    $("upload-bar").style.width = pct + "%";
+    $("upload-pct").textContent = pct + "%";
+  };
+  const fail = (msg) => {
+    row.hidden = true;
+    $("upload-bar").style.width = "0%";
+    $("dz-idle").hidden = false;
+    alert(msg);
+  };
+  xhr.onload = () => {
+    if (xhr.status !== 200) return fail("Could not use file: " + xhr.responseText);
+    row.hidden = true;
+    $("upload-bar").style.width = "0%";
+    selected = JSON.parse(xhr.responseText).path;
+    $("sel-name").textContent = f.name;
+    $("sel-meta").textContent = fmtSize(f.size);
+    $("dz-selected").hidden = false;
+    render();
+  };
+  xhr.onerror = () => fail("Upload failed");
+  xhr.send(f);
+}
+
+// ---- flashing ----
 
 $("flash-btn").onclick = async () => {
   if (!selected || busy()) return;
@@ -78,52 +94,6 @@ $("flash-btn").onclick = async () => {
 
 $("cancel-btn").onclick = () => fetch("/api/cancel", { method: "POST" });
 
-// ---- drag & drop ----
-
-let dragDepth = 0;
-document.addEventListener("dragenter", (e) => {
-  e.preventDefault();
-  if (++dragDepth === 1) $("drop-overlay").hidden = false;
-});
-document.addEventListener("dragleave", (e) => {
-  e.preventDefault();
-  if (--dragDepth <= 0) { dragDepth = 0; $("drop-overlay").hidden = true; }
-});
-document.addEventListener("dragover", (e) => e.preventDefault());
-document.addEventListener("drop", (e) => {
-  e.preventDefault();
-  dragDepth = 0;
-  $("drop-overlay").hidden = true;
-  const f = e.dataTransfer.files && e.dataTransfer.files[0];
-  if (f) uploadFile(f);
-});
-
-function uploadFile(f) {
-  const row = $("upload-row");
-  row.hidden = false;
-  $("upload-label").textContent = "Receiving " + f.name;
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", "/api/upload?name=" + encodeURIComponent(f.name));
-  xhr.upload.onprogress = (e) => {
-    if (!e.lengthComputable) return;
-    const pct = Math.round((e.loaded / e.total) * 100);
-    $("upload-bar").style.width = pct + "%";
-    $("upload-pct").textContent = pct + "%";
-  };
-  xhr.onload = async () => {
-    row.hidden = true;
-    $("upload-bar").style.width = "0%";
-    if (xhr.status !== 200) {
-      alert("Upload failed: " + xhr.responseText);
-      return;
-    }
-    selected = JSON.parse(xhr.responseText).path;
-    await loadImages();
-  };
-  xhr.onerror = () => { row.hidden = true; alert("Upload failed"); };
-  xhr.send(f);
-}
-
 // ---- live state ----
 
 const es = new EventSource("/api/events");
@@ -133,17 +103,12 @@ es.onmessage = (ev) => {
 };
 
 const PHASE_LABEL = {
-  idle: "",
   decompressing: "Decompressing image…",
   waiting: "Waiting for board — connect USB and power on in serial-download mode",
   flashing: "Flashing…",
-  success: "",
-  error: "",
-  cancelled: "",
 };
 
 function render() {
-  // USB chip
   const chip = $("usb-status");
   const devs = state.usbDevices || [];
   if (devs.length) {
@@ -162,7 +127,6 @@ function render() {
   $("flash-btn").disabled = !selected || busy();
   $("cancel-btn").hidden = !busy();
 
-  // progress
   const area = $("progress-area");
   area.hidden = state.phase === "idle";
   const decompRow = $("decomp-row");
@@ -193,7 +157,6 @@ function render() {
     rows.appendChild(card);
   }
 
-  // result banner
   const banner = $("result-banner");
   if (state.phase === "success") {
     const secs = Math.round((state.finishedAt - state.startedAt) / 1000);
@@ -212,7 +175,6 @@ function render() {
     banner.hidden = true;
   }
 
-  // log
   const log = $("log");
   const txt = (state.log || []).join("\n");
   if (log.textContent !== txt) {
@@ -220,5 +182,3 @@ function render() {
     log.scrollTop = log.scrollHeight;
   }
 }
-
-loadImages();

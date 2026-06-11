@@ -16,23 +16,25 @@ the progress bars. That's it.
 - `.wic.zst`, `.wic.gz`, `.wic.bz2` and plain `.wic` are passed straight to
   uuu, which decompresses them natively while flashing.
 - Uses `.bmap` files automatically when they sit next to the image.
-- Scans `~/Downloads` and the current folder for images (newest first).
+- Pick the image with a file chooser or drag & drop; picking a file that is
+  already in the image folder (e.g. straight from Downloads) copies nothing.
 - Live status: connected-board indicator, per-board step/command/percent,
   full uuu log, success/failure banner.
 
 ## Flashing a board (operator instructions)
 
-1. Download the `uuu-gui` build for your machine (Mac / Windows / Linux) and
-   put the image file (`*.wic.lz4`) in your **Downloads** folder.
+1. Download the `uuu-gui` build for your machine (Mac / Windows / Linux).
 2. Start uuu-gui:
    - **macOS**: first time only — right-click → *Open* (unsigned binary).
    - **Windows**: double-click `uuu-gui.exe`.
    - **Linux**: `sudo ./uuu-gui` (sudo gives USB access; or install udev
      rules, see below).
 3. The browser opens at `http://127.0.0.1:8642`.
-4. Connect the board's USB port and power it on in serial-download mode.
+4. Click **Choose image…** and pick the `.wic.lz4` (or drag & drop it onto
+   the page).
+5. Connect the board's USB port and power it on in serial-download mode.
    The header chip turns green when the board is detected.
-5. Click the image, click **⚡ Flash Board**, wait for the green banner.
+6. Click **⚡ Flash Board**, wait for the green banner.
 
 ## CLI usage
 

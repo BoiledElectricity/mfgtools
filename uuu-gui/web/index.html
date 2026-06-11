@@ -13,25 +13,30 @@
 </header>
 
 <main>
-  <section id="images-section">
-    <div class="section-head">
-      <h2>1. Pick an image</h2>
-      <div class="head-buttons">
-        <button id="import-btn" class="small accent">＋ Import image…</button>
-        <button id="refresh-btn" class="small" title="Rescan folders">↻ Refresh</button>
+  <section>
+    <h2>1. Image</h2>
+    <div id="dropzone">
+      <div id="dz-idle">
+        <button id="import-btn">Choose image…</button>
+        <div class="hint">or drag &amp; drop a .wic / .wic.lz4 file here</div>
+      </div>
+      <div id="dz-selected" hidden>
+        <div>
+          <div id="sel-name" class="image-name"></div>
+          <div id="sel-meta" class="image-meta"></div>
+        </div>
+        <button id="clear-btn" class="small">Change</button>
+      </div>
+      <div id="upload-row" class="prog-row" hidden>
+        <span class="prog-label" id="upload-label">Uploading</span>
+        <div class="bar"><div id="upload-bar" class="fill"></div></div>
+        <span id="upload-pct" class="prog-pct"></span>
       </div>
     </div>
     <input type="file" id="file-input" accept=".wic,.lz4,.zst,.gz,.bz2" hidden>
-    <p id="scan-hint" class="hint"></p>
-    <div id="upload-row" class="prog-row" hidden>
-      <span class="prog-label" id="upload-label">Receiving</span>
-      <div class="bar"><div id="upload-bar" class="fill"></div></div>
-      <span id="upload-pct" class="prog-pct"></span>
-    </div>
-    <div id="image-list" class="image-list"></div>
   </section>
 
-  <section id="flash-section">
+  <section>
     <h2>2. Flash</h2>
     <div class="flash-row">
       <button id="flash-btn" disabled>⚡ Flash Board</button>
@@ -57,7 +62,6 @@
   </section>
 </main>
 
-<div id="drop-overlay" hidden><div>Drop image to add it</div></div>
 <footer><span id="uuu-version"></span></footer>
 <script src="app.js"></script>
 </body>

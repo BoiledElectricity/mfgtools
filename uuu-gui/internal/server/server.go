@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -86,7 +85,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/", http.FileServerFS(s.opt.WebFS))
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/events", s.handleEvents)
-	mux.HandleFunc("GET /api/images", s.handleImages)
 	mux.HandleFunc("POST /api/upload", s.handleUpload)
 	mux.HandleFunc("POST /api/flash", s.handleFlash)
 	mux.HandleFunc("POST /api/cancel", s.handleCancel)
@@ -192,37 +190,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Image is one flashable file found in the scan directories.
-type Image struct {
-	Path    string `json:"path"`
-	Name    string `json:"name"`
-	Size    int64  `json:"size"`
-	ModTime int64  `json:"modTime"`
-	Kind    string `json:"kind"` // wic, lz4, zst, gz, bz2
-	HasBmap bool   `json:"hasBmap"`
-	Cached  bool   `json:"cached"` // lz4 already decompressed and fresh
-}
-
 var imageExts = map[string]string{
 	".wic": "wic", ".lz4": "lz4", ".zst": "zst", ".gz": "gz", ".bz2": "bz2",
 }
 
-func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
-	dirs := s.opt.ScanDirs
-	if d := r.URL.Query().Get("dir"); d != "" {
-		dirs = append([]string{d}, dirs...)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"dirs":   dirs,
-		"images": scanImages(dirs),
-	})
-}
-
-// handleUpload receives a drag-and-dropped image (raw body, ?name=...) and
-// stores it in the first scan directory. If a file with the same name and
-// size already exists in a scan directory, that file is reused unchanged so
-// dragging a file out of an already-scanned folder copies nothing.
+// handleUpload receives a chosen/dropped image (raw body, ?name=...) and
+// stores it in the first writable image directory. If a file with the same
+// name and size already exists there (e.g. picked straight from Downloads),
+// that file is reused unchanged so nothing is copied.
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	name := filepath.Base(r.URL.Query().Get("name"))
 	low := strings.ToLower(name)
@@ -288,55 +263,6 @@ func (s *Server) uploadDir() string {
 		}
 	}
 	return os.TempDir()
-}
-
-func scanImages(dirs []string) []Image {
-	seen := map[string]bool{}
-	var out []Image
-	for _, dir := range dirs {
-		ents, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, e := range ents {
-			if e.IsDir() {
-				continue
-			}
-			name := e.Name()
-			low := strings.ToLower(name)
-			kind, ok := imageExts[filepath.Ext(low)]
-			if !ok || !strings.Contains(low, ".wic") {
-				continue
-			}
-			path := filepath.Join(dir, name)
-			if seen[path] {
-				continue
-			}
-			seen[path] = true
-			fi, err := e.Info()
-			if err != nil {
-				continue
-			}
-			img := Image{
-				Path: path, Name: name, Size: fi.Size(),
-				ModTime: fi.ModTime().UnixMilli(), Kind: kind,
-			}
-			wic := path
-			if kind == "lz4" {
-				wic = lz4img.OutputPath(path)
-				img.Cached = lz4img.CachedOutput(path) != ""
-			}
-			if _, err := os.Stat(wic + ".bmap"); err == nil {
-				img.HasBmap = true
-			}
-			out = append(out, img)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ModTime > out[j].ModTime })
-	if len(out) > 100 {
-		out = out[:100]
-	}
-	return out
 }
 
 func (s *Server) handleFlash(w http.ResponseWriter, r *http.Request) {
