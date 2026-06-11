@@ -1,0 +1,119 @@
+name: uuu-gui
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'uuu-gui/**'
+      - 'libuuu/**'
+      - 'uuu/**'
+      - '.github/workflows/uuu-gui.yaml'
+  workflow_dispatch:
+
+jobs:
+  mac:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+            target: darwin_arm64
+          - os: macos-14-intel
+            arch: x86_64
+            target: darwin_amd64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: brew install libusb pkg-config zstd zlib openssl@3 cmake
+      - name: Build portable uuu
+        run: |
+          git fetch --tags --force
+          ./uuu-gui/build-uuu-macos.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: uuu-gui/go.sum
+      - name: Build and test uuu-gui
+        working-directory: uuu-gui
+        run: |
+          go test ./...
+          go build -o uuu-gui-mac-${{ matrix.arch }} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uuu-gui-mac-${{ matrix.arch }}
+          path: uuu-gui/uuu-gui-mac-${{ matrix.arch }}
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: x86_64
+            target: linux_amd64
+          - os: ubuntu-22.04-arm
+            arch: arm64
+            target: linux_arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install --yes libusb-1.0-0-dev libbz2-dev libzstd-dev libtinyxml2-dev cmake
+      - name: Build static uuu
+        run: |
+          git fetch --tags --force
+          git submodule update --init tinyxml2
+          cd tinyxml2 && cmake . && make -j4 && cd ..
+          cmake -D 'STATIC=1' -D 'FORCE_OLD=on' .
+          make -j4
+          mkdir -p uuu-gui/bins/${{ matrix.target }}
+          cp uuu/uuu uuu-gui/bins/${{ matrix.target }}/uuu
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: uuu-gui/go.sum
+      - name: Build and test uuu-gui
+        working-directory: uuu-gui
+        run: |
+          go test ./...
+          go build -o uuu-gui-linux-${{ matrix.arch }} .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uuu-gui-linux-${{ matrix.arch }}
+          path: uuu-gui/uuu-gui-linux-${{ matrix.arch }}
+
+  windows:
+    name: Windows x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build static uuu
+        run: |
+          git fetch --tags --force
+          msbuild /p:Configuration=Release /p:PlatformToolset=v143 /p:Platform=x64 /p:ForceImportBeforeCppTargets=${{ github.workspace }}/libusb.prop msvc/uuu-static-link.sln
+          New-Item -ItemType Directory -Force uuu-gui/bins/windows_amd64 | Out-Null
+          Copy-Item msvc/x64/Release/uuu.exe uuu-gui/bins/windows_amd64/uuu.exe
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache-dependency-path: uuu-gui/go.sum
+      - name: Build and test uuu-gui
+        working-directory: uuu-gui
+        run: |
+          go test ./...
+          go build -o uuu-gui-windows-x64.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uuu-gui-windows-x64
+          path: uuu-gui/uuu-gui-windows-x64.exe

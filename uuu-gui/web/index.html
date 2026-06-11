@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board Flasher</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Board Flasher</h1>
+  <div id="usb-status" class="chip chip-gray">checking USB…</div>
+</header>
+
+<main>
+  <section id="images-section">
+    <div class="section-head">
+      <h2>1. Pick an image</h2>
+      <button id="refresh-btn" class="small" title="Rescan folders">↻ Refresh</button>
+    </div>
+    <div id="image-list" class="image-list"></div>
+  </section>
+
+  <section id="flash-section">
+    <h2>2. Flash</h2>
+    <div class="flash-row">
+      <button id="flash-btn" disabled>⚡ Flash Board</button>
+      <button id="cancel-btn" class="danger" hidden>Cancel</button>
+      <span id="phase-label"></span>
+    </div>
+
+    <div id="progress-area" hidden>
+      <div id="decomp-row" class="prog-row" hidden>
+        <span class="prog-label">Decompressing</span>
+        <div class="bar"><div id="decomp-bar" class="fill"></div></div>
+        <span id="decomp-pct" class="prog-pct"></span>
+      </div>
+      <div id="device-rows"></div>
+    </div>
+
+    <div id="result-banner" hidden></div>
+
+    <details id="log-details">
+      <summary>Log</summary>
+      <pre id="log"></pre>
+    </details>
+  </section>
+</main>
+
+<footer><span id="uuu-version"></span></footer>
+<script src="app.js"></script>
+</body>
+</html>
