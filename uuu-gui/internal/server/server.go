@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -86,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	mux.HandleFunc("GET /api/images", s.handleImages)
+	mux.HandleFunc("POST /api/upload", s.handleUpload)
 	mux.HandleFunc("POST /api/flash", s.handleFlash)
 	mux.HandleFunc("POST /api/cancel", s.handleCancel)
 	return mux
@@ -210,9 +212,82 @@ func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
 	if d := r.URL.Query().Get("dir"); d != "" {
 		dirs = append([]string{d}, dirs...)
 	}
-	images := scanImages(dirs)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(images)
+	json.NewEncoder(w).Encode(map[string]any{
+		"dirs":   dirs,
+		"images": scanImages(dirs),
+	})
+}
+
+// handleUpload receives a drag-and-dropped image (raw body, ?name=...) and
+// stores it in the first scan directory. If a file with the same name and
+// size already exists in a scan directory, that file is reused unchanged so
+// dragging a file out of an already-scanned folder copies nothing.
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	name := filepath.Base(r.URL.Query().Get("name"))
+	low := strings.ToLower(name)
+	if _, ok := imageExts[filepath.Ext(low)]; !ok || !strings.Contains(low, ".wic") || name == "." {
+		http.Error(w, "not a flashable image (need .wic / .wic.lz4 / .wic.zst / .wic.gz / .wic.bz2)", http.StatusBadRequest)
+		return
+	}
+
+	reply := func(path string) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"path": path})
+	}
+
+	for _, d := range s.opt.ScanDirs {
+		p := filepath.Join(d, name)
+		if fi, err := os.Stat(p); err == nil && fi.Size() == r.ContentLength {
+			reply(p)
+			return
+		}
+	}
+
+	dir := s.uploadDir()
+	dst := filepath.Join(dir, name)
+	for i := 1; ; i++ {
+		if _, err := os.Stat(dst); os.IsNotExist(err) {
+			break
+		}
+		ext := filepath.Ext(name)
+		base := strings.TrimSuffix(name, ext)
+		dst = filepath.Join(dir, fmt.Sprintf("%s-%d%s", base, i, ext))
+	}
+
+	tmp := dst + ".part"
+	f, err := os.Create(tmp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, err = io.Copy(f, r.Body)
+	f.Close()
+	if err != nil {
+		os.Remove(tmp)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.Rename(tmp, dst); err != nil {
+		os.Remove(tmp)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.logf("Received %s", dst)
+	reply(dst)
+}
+
+func (s *Server) uploadDir() string {
+	for _, d := range s.opt.ScanDirs {
+		if fi, err := os.Stat(d); err == nil && fi.IsDir() {
+			if f, err := os.CreateTemp(d, ".uuu-gui-w*"); err == nil {
+				f.Close()
+				os.Remove(f.Name())
+				return d
+			}
+		}
+	}
+	return os.TempDir()
 }
 
 func scanImages(dirs []string) []Image {

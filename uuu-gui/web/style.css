@@ -79,6 +79,15 @@ button.danger { background: var(--red); }
 #result-banner.ok { background: rgba(46,160,67,.15); color: #4ec96a; }
 #result-banner.bad { background: rgba(229,83,75,.13); color: #ff7b72; }
 
+.hint { color: var(--dim); font-size: 12.5px; margin: 0 0 10px; }
+
+#drop-overlay {
+  position: fixed; inset: 0; z-index: 10; display: flex; align-items: center;
+  justify-content: center; background: rgba(17,22,29,.85);
+  border: 3px dashed var(--accent); font-size: 26px; font-weight: 800;
+  color: var(--accent); pointer-events: none;
+}
+
 #log-details { margin-top: 14px; color: var(--dim); }
 #log {
   background: #0b0f14; border-radius: 8px; padding: 12px; max-height: 320px; overflow: auto;

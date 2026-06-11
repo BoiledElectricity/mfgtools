@@ -19,20 +19,25 @@ const busy = () => ["decompressing", "waiting", "flashing"].includes(state.phase
 
 async function loadImages() {
   const res = await fetch("/api/images");
-  const images = await res.json() || [];
+  const data = await res.json() || {};
+  const images = data.images || [];
+  $("scan-hint").textContent =
+    "Drag & drop an image anywhere on this page, or pick one found in: " +
+    (data.dirs || []).join("  ·  ");
   const list = $("image-list");
   list.innerHTML = "";
   if (!images.length) {
-    list.innerHTML = '<div class="empty">No .wic images found in Downloads or the working folder.<br>Drop an image in ~/Downloads and hit Refresh.</div>';
+    list.innerHTML = '<div class="empty">No .wic images found.<br>Drag &amp; drop a .wic / .wic.lz4 file anywhere on this page.</div>';
     return;
   }
+  if (!selected) selected = images[0].path; // preselect newest
   for (const img of images) {
     const item = document.createElement("div");
     item.className = "image-item" + (selected === img.path ? " selected" : "");
     item.innerHTML = `
       <div>
         <div class="image-name">${img.name}</div>
-        <div class="image-meta">${fmtSize(img.size)} · ${fmtWhen(img.modTime)}</div>
+        <div class="image-meta">${fmtSize(img.size)} · ${fmtWhen(img.modTime)} · ${img.path.slice(0, img.path.length - img.name.length - 1)}</div>
       </div>
       <div class="badges">
         ${img.kind !== "wic" ? `<span class="badge lz4">${img.kind.toUpperCase()}</span>` : ""}
@@ -47,6 +52,7 @@ async function loadImages() {
     };
     list.appendChild(item);
   }
+  render();
 }
 
 // ---- actions ----
@@ -64,6 +70,52 @@ $("flash-btn").onclick = async () => {
 };
 
 $("cancel-btn").onclick = () => fetch("/api/cancel", { method: "POST" });
+
+// ---- drag & drop ----
+
+let dragDepth = 0;
+document.addEventListener("dragenter", (e) => {
+  e.preventDefault();
+  if (++dragDepth === 1) $("drop-overlay").hidden = false;
+});
+document.addEventListener("dragleave", (e) => {
+  e.preventDefault();
+  if (--dragDepth <= 0) { dragDepth = 0; $("drop-overlay").hidden = true; }
+});
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  $("drop-overlay").hidden = true;
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) uploadFile(f);
+});
+
+function uploadFile(f) {
+  const row = $("upload-row");
+  row.hidden = false;
+  $("upload-label").textContent = "Receiving " + f.name;
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/upload?name=" + encodeURIComponent(f.name));
+  xhr.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round((e.loaded / e.total) * 100);
+    $("upload-bar").style.width = pct + "%";
+    $("upload-pct").textContent = pct + "%";
+  };
+  xhr.onload = async () => {
+    row.hidden = true;
+    $("upload-bar").style.width = "0%";
+    if (xhr.status !== 200) {
+      alert("Upload failed: " + xhr.responseText);
+      return;
+    }
+    selected = JSON.parse(xhr.responseText).path;
+    await loadImages();
+  };
+  xhr.onerror = () => { row.hidden = true; alert("Upload failed"); };
+  xhr.send(f);
+}
 
 // ---- live state ----
 

@@ -18,6 +18,12 @@
       <h2>1. Pick an image</h2>
       <button id="refresh-btn" class="small" title="Rescan folders">↻ Refresh</button>
     </div>
+    <p id="scan-hint" class="hint"></p>
+    <div id="upload-row" class="prog-row" hidden>
+      <span class="prog-label" id="upload-label">Receiving</span>
+      <div class="bar"><div id="upload-bar" class="fill"></div></div>
+      <span id="upload-pct" class="prog-pct"></span>
+    </div>
     <div id="image-list" class="image-list"></div>
   </section>
 
@@ -47,6 +53,7 @@
   </section>
 </main>
 
+<div id="drop-overlay" hidden><div>Drop image to add it</div></div>
 <footer><span id="uuu-version"></span></footer>
 <script src="app.js"></script>
 </body>
